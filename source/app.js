@@ -149,7 +149,7 @@ class Application {
         const showOpenDialogOptions = {
             properties: [ 'openFile' ],
             filters: [
-                { name: 'All Model Files',  extensions: [
+                { name: 'All Model Files (咱啥都认)',  extensions: [
                     'onnx', 'pb',
                     'h5', 'hd5', 'hdf5', 'json', 'keras',
                     'mlmodel',

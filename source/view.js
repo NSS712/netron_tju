@@ -1082,7 +1082,7 @@ view.View = class {
             nodeSidebar.on('export-tensor', (sender, tensor) => {
                 this._host.require('./numpy').then((numpy) => {
                     const defaultPath = tensor.name ? tensor.name.split('/').join('_').split(':').join('_').split('.').join('_') : 'tensor';
-                    this._host.save('NumPy Array', 'npy', defaultPath, (file) => {
+                    this._host.tensor_save('NumPy Array format', 'npy', defaultPath, (file) => {
                         try {
                             const dataTypeMap = new Map([
                                 [ 'float16', 'f2' ], [ 'float32', 'f4' ], [ 'float64', 'f8' ],

@@ -229,7 +229,7 @@ host.ElectronHost = class {
         }
     }
 
-    save(name, extension, defaultPath, callback) {
+    tensor_save(name, extension, defaultPath, callback) {
         const selectedFile = electron.ipcRenderer.sendSync('show-save-dialog', {
             title: 'Export Tensor',
             defaultPath: defaultPath,

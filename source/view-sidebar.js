@@ -717,7 +717,7 @@ sidebar.ArgumentView = class {
                     const valueLine = this._host.document.createElement('div');
                     try {
                         const state = initializer.state;
-                        if (state === null && this._host.save &&
+                        if (state === null && this._host.tensor_save &&
                             initializer.type.dataType && initializer.type.dataType != '?' &&
                             initializer.type.shape && initializer.type.shape.dimensions && initializer.type.shape.dimensions.length > 0) {
                             this._saveButton = this._host.document.createElement('div');
