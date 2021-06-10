@@ -218,7 +218,10 @@ class Application {
             }
         }
     }
-
+    _exportParam()
+    {
+        
+    }
     _export() {
         const view = this._views.activeView;
         if (view && view.path) {
@@ -430,6 +433,14 @@ class Application {
                     click: () => this._export(),
                 },
                 { type: 'separator' },
+                {
+                    id: 'file.exportParam',
+                    label: '&Export Param...',
+                    accelerator: 'CmdOrCtrl+Shift+F',
+                    enabled:false,
+                    click: () => this.execute('export_param', null),
+                },
+                { type: 'separator' },
                 { role: 'close' },
             ]
         });
@@ -587,6 +598,9 @@ class Application {
         commandTable.set('file.export', {
             enabled: (context) => { return context.view && context.view.path ? true : false; }
         });
+        commandTable.set('file.exportParam', {
+            enabled: (context) => { return context.view && context.view.path ? true : false; }
+        });        
         commandTable.set('edit.cut', {
             enabled: (context) => { return context.view && context.view.path ? true : false; }
         });

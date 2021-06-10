@@ -15,6 +15,14 @@ var d3 = d3 || require('d3');
 var sidebar = sidebar || require('./view-sidebar');
 var grapher = grapher || require('./view-grapher');
 
+var model_folder;
+var model_file;
+const { tickStep } = require('d3-array');
+const view_fs = require('fs');
+var node_list = {};
+var node_json_list = {};
+var node_idx = 0;
+
 view.View = class {
 
     constructor(host, id) {
@@ -22,6 +30,8 @@ view.View = class {
         this._id = id ? ('-' + id) : '';
         this._host.initialize(this).then(() => {
             this._model = null;
+            this.model_folder = '';
+            this.model_file = '';
             this._selection = [];
             this._sidebar = new sidebar.Sidebar(this._host, id);
             this._showAttributes = false;
@@ -421,6 +431,8 @@ view.View = class {
     open(context) {
         this._host.event('Model', 'Open', 'Size', context.stream.length);
         this._sidebar.close();
+        this.model_folder = context._folder;
+        this.model_file = context._identifier;
         return this._timeout(2).then(() => {
             return this._modelFactoryService.open(context).then((model) => {
                 const format = model.format;
@@ -542,6 +554,7 @@ view.View = class {
                 }
 
                 const self = this;
+                this.nodes = nodes;
                 for (const node of nodes) {
 
                     const viewNode = viewGraph.createNode(node);
@@ -1129,6 +1142,88 @@ view.View = class {
         }
     }
 };
+
+view.nodedesc = class {
+    constructor(host, node) {
+        this.node_json = {
+            index: 2,
+            operator: 2,
+            attribute: {},
+            previous: [],
+            next: [],
+        };
+
+        this.node_tree_desc = {
+            index: 0,
+            input_id: [],
+            output_id: [],
+        };
+
+        this._host = host;
+        this._node = node;
+        this._elements = [];
+        this._attributes = [];
+        this._inputs = [];
+        this._outputs = [];
+
+        var fs = require('fs');
+        var path = host._view.model_folder;
+        var sub_dir = host._view.model_file;
+        var idx = sub_dir.indexOf('.');
+
+        if (idx != -1) {
+            sub_dir = sub_dir.substring(0, idx);
+        }
+
+        var path = host._view.model_folder + '\\' + sub_dir;
+        fs.mkdir(path, function(err){
+            console.log(err);
+        });
+
+        fs.stat(path, function(error, status) {
+            if (error) {
+                fs.mkdir(path);
+            }
+            console.log(path);
+        })
+
+        this.node_json.index = node_idx;
+        this.node_tree_desc.index = node_idx;
+        this.node_json.operator = node.operator;
+        
+        var attributes = node.attributes;
+
+        if (attributes && attributes.length > 0) {
+            try {
+                for (var att of attributes) {
+                    if (att.value) {
+                        this.node_json.attribute[att.name] = att.value;
+                    }
+                }
+
+                var tmp_str = JSON.stringify(this.node_json);
+            } catch(e) {
+                this.error('Error.', e.message);
+            }
+        }
+
+        this.node_json.previous[0] = node_idx ? node_idx - 1 : 0;
+        this.node_json.next[0] = node_idx + 1;
+        this.node_json.attribute['has_bias'] = 'false'
+
+        // gen node tree list
+        var outputs = node.outputs;
+        if (outputs && outputs.length > 0) {
+            for (var out of outputs) {
+                for (var arg of out.arguments) {
+                    // rocky: it is not the same type: [] VS. number?
+                    this.node_tree_desc.output_id = arg.id;
+                }
+            }
+        }
+
+    }
+}
 
 view.Graph = class extends grapher.Graph {
 

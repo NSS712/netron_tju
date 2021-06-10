@@ -10,6 +10,10 @@ const process = require('process');
 const path = require('path');
 const querystring = require('querystring');
 
+var server = require('http').createServer();
+var io = require('socket.io')(server);
+var sio_client;
+
 host.ElectronHost = class {
 
     constructor() {
@@ -105,6 +109,32 @@ host.ElectronHost = class {
     start() {
         this._view.show('welcome');
 
+        io._host = view
+        sio_client = null;
+        io.on('connection', function(client){
+            console.log('connected');
+            // when get data on message
+            sio_client = client
+            client.on('open', function(obj){
+                var filename = obj.toString();
+                console.log('open file:', filename);
+                var host = this.server._host;
+                host._host._openFile(filename);
+            });
+
+            client.on('export', function(obj){
+                console.log('export param...');
+                var host = this.server._host;
+                host._host.export_param();
+                client.emit('export', 'success')
+            });
+            client.on('event', function(data){});
+            client.on('disconnect', function(){
+                console.log('client disconnected');
+                sio_client = null;
+            });
+        });
+
         if (this._queue) {
             const queue = this._queue;
             delete this._queue;
@@ -126,6 +156,9 @@ host.ElectronHost = class {
         electron.ipcRenderer.on('paste', () => {
             this._view.paste();
         });
+        electron.ipcRenderer.on('export_param', (_, data) =>{
+            this._export_param();
+        })
         electron.ipcRenderer.on('selectall', () => {
             this._view.selectAll();
         });
@@ -348,6 +381,10 @@ host.ElectronHost = class {
         }
     }
 
+    _export_param() {
+        this._view.SaveNodeTreeJSON();
+    }
+
     _openFile(file) {
         if (this._queue) {
             this._queue.push(file);
@@ -367,6 +404,9 @@ host.ElectronHost = class {
                     this._update('show-attributes', this._view.showAttributes);
                     this._update('show-initializers', this._view.showInitializers);
                     this._update('show-names', this._view.showNames);
+                    if (sio_client) {
+                        sio_client.emit('open', 'success');
+                    }
                 }).catch((error) => {
                     if (error) {
                         this._view.error(error, null, null);
