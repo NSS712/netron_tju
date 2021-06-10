@@ -14,24 +14,46 @@ var d3 = d3 || require('d3');
 
 var sidebar = sidebar || require('./view-sidebar');
 var grapher = grapher || require('./view-grapher');
-
+// >>> export related globals
+const { tickStep } = require('d3-array');
 var model_folder;
 var model_file;
-const { tickStep } = require('d3-array');
 const view_fs = require('fs');
 var node_list = {};
 var node_json_list = {};
 var node_idx = 0;
-
+// <<<
 view.View = class {
 
     constructor(host, id) {
         this._host = host;
         this._id = id ? ('-' + id) : '';
         this._host.initialize(this).then(() => {
-            this._model = null;
+            
+            // >>> export related members
             this.model_folder = '';
             this.model_file = '';
+
+            this.nodes = {};
+            this.nodeJSONidx = 0;
+            this.node_json = {
+                index:2,
+                operator:2,
+                attribute : {},
+                previous:[],
+                next:[],
+            };
+
+            this.node_tree_desc ={
+                index:0,
+                input_id:[],
+                output_id:[],
+            };
+            this.nodeJSNOList = [];
+            this.nodeTreeList = [];             
+            // <<<
+
+            this._model = null;
             this._selection = [];
             this._sidebar = new sidebar.Sidebar(this._host, id);
             this._showAttributes = false;
@@ -1141,6 +1163,78 @@ view.View = class {
             this._sidebar.push(documentationSidebar.render(), 'Documentation');
         }
     }
+
+    SaveNodeProperties(node, input) {
+        if (node) {
+            var desc = new view.nodedesc(this._host, node);
+            this.nodeJSNOList[this.nodeJSONidx] = desc.readNodeJSONStruct();
+            this.nodeTreeList[this.nodeJSONidx] = desc.readNodeTreeDesc();
+            this.nodeJSONidx++;
+        }
+    }
+
+    SearchNodeIndexByOutput(out_id) {
+        for (var idx=0; idx<this.nodeJSONidx; idx++) {
+            this.node_tree_desc = this.nodeTreeList[idx];
+            if (this.node_tree_desc.output_id == out_id) {
+                return this.node_tree_desc.index;
+            }
+        }
+    }
+
+    SaveNodeTreeJSON() {
+        for (var node of this.nodes) {
+            this.SaveNodeProperties(node, null);
+        }
+
+        for (var idx=0; idx<this.nodeJSONidx; idx++) {
+            this.node_tree_desc = this.nodeTreeList[idx];
+            try {
+                if (this.node_tree_desc.input_id.length > 1) {
+                    for (var id of this.node_tree_desc.input_id) {
+                        var node_idx = this.SearchNodeIndexByOutput(id);
+                        this.node_json = this.nodeJSNOList[node_idx];
+                        if(this.node_json.next != idx)
+                        {
+                            // rocky: 为啥是1？
+                            this.node_json.next[1] = idx
+                            var pre_idx = this.node_json.index
+                            this.node_json = this.nodeJSNOList[idx]
+                            this.node_json.previous[1] =  pre_idx 
+                        }
+                    }
+                }
+            } catch(e) {
+                this.error('Error', e.message);
+            }
+        }
+
+        var dict_str = '';
+        for (var idx=0; idx<this.nodeJSONidx; idx++) {
+            var node_json = this.nodeJSNOList[idx];
+            dict_str += JSON.stringify(node_json) + '\r\n';
+        }
+
+        var fs = require('fs');
+        var path = this.model_folder;
+        var sub_dir = this.model_file;
+        var idx = sub_dir.indexOf('.');
+        if (idx != -1) {
+            // 去掉文件扩展名
+            sub_dir = sub_dir.substring(0, idx);    
+        }
+        var path = this.model_folder + '\\' + sub_dir;
+        var defaultPath = path + '\\dict.json';
+        var encoding = null;
+        fs.writeFile(defaultPath, dict_str, encoding, (err) => {
+            if (err) {
+                this.exception(err, false);
+                this.error('Error writing file.', err.message);
+            }
+        });
+
+    }
+
 };
 
 view.nodedesc = class {
@@ -1218,10 +1312,92 @@ view.nodedesc = class {
                 for (var arg of out.arguments) {
                     // rocky: it is not the same type: [] VS. number?
                     this.node_tree_desc.output_id = arg.id;
+                    if (arg.id.search('Relu') != -1) {
+                        // rocky: 判断fused activation的逻辑可能有bug
+                        this.node_json.attribute['fused_activation_function'] = 'relu';
+                    }
                 }
             }
         }
 
+        var inputs = node.inputs;
+        if (inputs && inputs.length > 0) {
+            var input_idx = 0;
+            for (var inp in inputs) {
+                if (inp.name == 'input' || inp.name == 'output' || node.operator == 'Add') {
+                    // rocky: 判断多重输入的逻辑可能有bug
+                    for (var arg of inp.arguments) {
+                        this.node_tree_desc.input_id[input_idx] = arg.id;
+                        input_idx++;
+                    }
+                }
+            }
+        }
+
+        //==========================================================================
+        // proc data
+        var inputs = node.inputs;
+        var idx = 0;
+        if (inputs && inputs.length > 0) {
+            for (var input of inputs) {
+                if (input.name == 'input' || input.name == 'output') {
+                    continue;
+                }
+                for (var argument of input.arguments) {
+                    var argument_name = input.name;
+                    var defaultPath = argument_name ? argument_name.split('/').join('_').split(':').join('_').split('.').join('_') : 'tensor'; 
+                    defaultPath = path + '\\' + node_idx.toString() + '_' + idx.toString() + _quantization.txt;
+                    if (argument.quantization) {
+                        if (argument_name == 'weights') {
+                            this.node_json.attribute['shape'] = argument.type.shape.toString();
+                        }
+                        if(argument_name == 'bias')
+                        {
+                            this.node_json.attribute['has_bias'] = 'true';
+                        }                     
+                        try{
+                            var quat_buf = argument.quantization.toString()
+                            //var type_buf = 'type:' + argument.type.dataType.toString() + argument.type.shape.toString()
+                            //quat_buf = type_buf + '\r\n' + quat_buf
+                            
+                        }catch(e) {
+                            this.error('Error.',e.message)
+                        }
+                        //var blob = new Blob(defaultPath,argument.quantization, { type: 'application/octet-stream' });
+                        var encoding = null;
+                        fs.writeFile(defaultPath, quat_buf, encoding, (err) => {
+                            if (err) {
+                                this.exception(err, false);
+                                this.error('Error writing file.', err.message);
+                            }
+                        });                        
+                    }
+                    var initializer = argument.initializer;
+                    if (initializer != null) {
+                        var argument_name = input.name;
+                        var defaultPath = argument_name ? argument_name.split('/').join('_').split(':').join('_').split('.').join('_') : 'tensor';
+                        defaultPath = path + '\\' +node_idx.toString()+'_'+idx.toString()+'.npy';
+                        var numpy = require('./numpy');
+                        var tensor = initializer;
+                        var array = new numpy.Array(tensor.value, tensor.type.dataType, tensor.type.shape.dimensions);
+                        var blob = new Blob([array.toBuffer()], {type: 'application/octet-stream'});
+                        this._host.export(defaultPath, blob);
+
+                    }
+                    idx++;
+
+                }
+            }        
+        }
+        node_idx++;
+    }
+
+    readNodeJSONStruct() {
+        return this.node_json;
+    }
+
+    readNodeTreeDesc() {
+        return this.node_tree_desc;
     }
 }
 

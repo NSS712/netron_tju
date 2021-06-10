@@ -109,7 +109,7 @@ host.ElectronHost = class {
     start() {
         this._view.show('welcome');
 
-        io._host = view
+        io._host = this._view;
         sio_client = null;
         io.on('connection', function(client){
             console.log('connected');
@@ -134,6 +134,8 @@ host.ElectronHost = class {
                 sio_client = null;
             });
         });
+
+        server.listen(9901);
 
         if (this._queue) {
             const queue = this._queue;
