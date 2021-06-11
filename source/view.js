@@ -544,8 +544,8 @@ view.View = class {
                 this._host.event('Graph', 'Render', 'Size', nodes.length);
 
                 const options = {};
-                options.nodesep = 25;
-                options.ranksep = 20;
+                options.nodesep = 15;
+                options.ranksep = 15;
                 const rotate = graph.nodes.every((node) => node.inputs.filter((input) => input.arguments.every((argument) => !argument.initializer)).length === 0 && node.outputs.length === 0);
                 const showHorizontal = rotate ? !this._showHorizontal : this._showHorizontal;
                 if (showHorizontal) {
@@ -1177,12 +1177,196 @@ view.View = class {
         for (var idx=0; idx<this.nodeJSONidx; idx++) {
             this.node_tree_desc = this.nodeTreeList[idx];
             if (this.node_tree_desc.output_id == out_id) {
-                return this.node_tree_desc.index;
+                return this.node_tree_desc.index;aaaaa
             }
         }
     }
 
+    rky_IsGraphInput(tns, nodes) {
+        if (tns.a_netronTns.initializer != null) {
+            // 不把weights / bias 当作输入变量
+            return false;
+        }
+        for (let node of nodes) {
+            for (let output of node.outputs) {
+                for (let arg of output.arguments) {
+                    if (tns.name == arg._name) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    rky_IsGraphOutput(tns, nodes) {
+        if (tns.a_netronTns.initializer != null) {
+            // 不把weights / bias 当作输出变量
+            return false;
+        }
+        for (let node of nodes) {
+            for (let input of node.inputs) {
+                for (let arg of input.arguments) {
+                    if (tns.name == arg._name) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }    
+
+    rky_CheckGroupConv(node, op){
+        op.name = 'CONV_2D';
+        for (let att of node.attributes) {
+            if (att.name == 'group') {
+                if (att.value != 1) {
+                    let ic = 0;
+                    for (let i = 0; i< node.inputs.length; i++) {
+                        for (let arg of node.inputs[i].arguments) {
+                            if (arg.initializer == null){
+                                // rky: 不根据变量tensor决定组数
+                                continue;
+                            }                        
+                            if (arg.type != null) {
+                                ic = arg.type.shape.dimensions[0];
+                                break;
+                            }
+                        }
+                        if (ic != 0) {
+                            break;
+                        }
+                    }
+
+                    // rky: 潜在bug: 只有使用Int64时才需要.low
+                    if (att.value.low === ic.low) {
+                        op.name = 'DEPTHWISE_CONV_2D';
+                    } else {
+                        op.name = 'GROUPED_CONV2D'
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    rky_ParseTensor(tns, netronTns, nodes, tnsAry, isInput) {
+        tns.isConst = netronTns.initializer != null ? true : false;                
+        if (isInput == true) {
+            tns.isGraphInput = this.rky_IsGraphInput(tns, nodes);
+            tns.isGraphOutput = false;
+        } else {
+            tns.isGraphOutput = this.rky_IsGraphOutput(tns, nodes);
+            tns.isGraphInput = false;
+        }        
+        tnsAry.push(tns);
+    }
+
+    rky_SaveTfliteJson() {
+        let sFileName = this.model_folder + this.modelfile + '.json';
+        let model = this._model;
+        let dct = {
+            version: 3,
+        }
+        let sg_aryTensors = [];
+        let sg_aryInpTensors = [];
+        let sg_aryOutTensors = [];
+        let sg_aryOps = [];
+        let sg_aryOpTypes = [];
+        let sg_sName = model.graphs[0].name;
+        let sFmt = model.format.toLowerCase();
+        let isCHW = false;
+
+        if (sFmt.indexOf('onnx') >= 0) {
+            isCHW = true;
+        }
+
+        if (model.graphs.length != 1) {
+            console.log('sub graph must be 1!');
+            return;
+        }
+
+        let nodeNdx = 0;
+        let tnsNdx = 0;
+        let nodes = this.nodes; // rky: netron的node是operator
+        for (let node of nodes) {
+
+            let op = {a_netronNode: node};
+            if (node.type === 'Conv' || node.type == 'Convolution') {
+                // 判断是否是分组卷积实现的dsconv
+                this.rky_CheckGroupConv(node, op);                
+            } else {
+                op.name = node.type.toUpperCase();
+            }
+
+            let isNewTns = true;
+            // rky: 遍历所有被当作这个node的输入的tensors
+            for (let input of node.inputs) {
+                for(let arg of input.arguments)
+                {
+                    isNewTns = true;
+                    // rky: 检查这个tensor是不是已经出现过了
+                    for (let t of sg_aryTensors) {
+                        if (t.name == arg._name) {
+                            isNewTns = false;
+                            // rky: 这是已经出现过的tensor, 在另一个op上又被当作输入了
+                            t.toOps.push(op);
+                            isNewTns = false;
+                            break;
+                        }
+                    }
+                    // rky: 找到了一个新的tensor
+                    if (isNewTns == true) {
+                        let tns = {a_netronTns: arg, name: arg._name, ndx:tnsNdx, toOps: [op], fromOps:[]};
+                        this.rky_ParseTensor(tns, arg, nodes, sg_aryTensors, true);
+                        if (tns.isGraphInput) {
+                            sg_aryInpTensors.push(tns);
+                        }
+                        tnsNdx++;
+                    }
+                }
+
+
+                // (input.visible && input.arguments.length === 1 && input.arguments[0].initializer != null)
+            }
+
+            for (let output of node.outputs) {
+                for (let arg of output.arguments) {
+                    // rky: 检查这个tensor是不是已经出现过了
+                    isNewTns = true;
+                    for (let t of sg_aryTensors) {
+                        if (t.name == arg._name) {
+                            isNewTns = false;
+                            // rky: 这是已经出现过的tensor, 在另一个op上又被当作输入了
+                            t.fromOps.push(op);
+                            isNewTns = false;
+                            break;
+                        }
+                    }
+                    if (isNewTns == true) {
+                        let tns = {a_netronTns: arg, name: arg._name, ndx:tnsNdx, fromOps: [op], toOps:[]};
+                        this.rky_ParseTensor(tns, arg, nodes, sg_aryTensors, false);
+                        if (tns.isGraphOutput) {
+                            sg_aryOutTensors.push(tns);
+                        }                        
+                        tnsNdx++;                    
+                    }
+    
+                }
+            }
+            sg_aryOps.push(op);
+            if (sg_aryOpTypes.indexOf(op.name) < 0) {
+                sg_aryOpTypes.push(op.name);
+            }
+            nodeNdx++;
+            console.log('parsed op,', op.name);
+        }
+        console.log(this.nodes.length);
+    }
+
     SaveNodeTreeJSON() {
+        this.rky_SaveTfliteJson();
+        return;
         for (var node of this.nodes) {
             this.SaveNodeProperties(node, null);
         }
