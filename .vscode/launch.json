@@ -22,7 +22,7 @@
             "runtimeArgs": [
               "${workspaceRoot}",
               "--enable-logging",
-              "--remote-debugging-port=8998"
+              "--remote-debugging-port=9001"
             ],
             "webRoot": "${workspaceRoot}"
         }

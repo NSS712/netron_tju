@@ -1177,9 +1177,30 @@ view.View = class {
         for (var idx=0; idx<this.nodeJSONidx; idx++) {
             this.node_tree_desc = this.nodeTreeList[idx];
             if (this.node_tree_desc.output_id == out_id) {
-                return this.node_tree_desc.index;aaaaa
+                return this.node_tree_desc.index;
             }
         }
+    }
+
+    rky_SplitChain(node) {
+        outputs = node.outputs;
+        if (node.chain && node.chain.length > 0) {
+            const chainOutputs = node.chain[node.chain.length - 1].outputs;
+            if (chainOutputs.length > 0) {
+                outputs = chainOutputs;
+            }
+        }
+        if (outputs._arguments.length != 1) {
+            console.error('only support 1 output for chained/fused operators');
+            return [node];
+        }
+        // rocky: todo: 拆解chain，创建新的中间输入和输出tensor，以及新的nodes
+        curOutputs = outputs;
+        newNodes = [node];
+        for (let i=0; i<node.chain.length; i++) {
+            
+        }
+        return newNodes;
     }
 
     rky_IsGraphInput(tns, nodes) {
@@ -1251,7 +1272,18 @@ view.View = class {
     }
 
     rky_ParseTensor(tns, netronTns, nodes, tnsAry, isInput) {
-        tns.isConst = netronTns.initializer != null ? true : false;                
+        if (netronTns.initializer != null) {
+            tns.isConst = true;
+            tns.data = {
+                ary: netronTns.initializer.data,
+                shape: netronTns.shape.dimensions
+            };
+            console.log(tns.data.shape);
+        } else {
+            tns.isConst = false;
+            tns.data = null;
+        }
+
         if (isInput == true) {
             tns.isGraphInput = this.rky_IsGraphInput(tns, nodes);
             tns.isGraphOutput = false;
@@ -2132,6 +2164,7 @@ view.ModelFactoryService = class {
     }
 
     _openContext(context) {
+        // rocky: modules 存储了可能的格式
         const modules = this._filter(context).filter((module) => module && module.length > 0);
         const errors = [];
         let match = false;
