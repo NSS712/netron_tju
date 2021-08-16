@@ -1177,7 +1177,7 @@ view.View = class {
         for (var idx=0; idx<this.nodeJSONidx; idx++) {
             this.node_tree_desc = this.nodeTreeList[idx];
             if (this.node_tree_desc.output_id == out_id) {
-                return this.node_tree_desc.index;
+                return this.node_tree_desc.index;aaaaa
             }
         }
     }
@@ -1238,18 +1238,22 @@ view.View = class {
     }    
 
     rky_CheckGroupConv(node, op){
-        op.name = 'CONV_2D';
+        op.name = 'CONV_2D';    // 先默认是普通Conv2D，后面再修正
         for (let att of node.attributes) {
             if (att.name == 'group') {
                 if (att.value != 1) {
-                    let ic = 0;
+                    // 分组数不是1.检查是否和输入通道数相同
+                    let ic = 0; // ic = input channels
                     for (let i = 0; i< node.inputs.length; i++) {
+                        // 遍历节点输入列表
                         for (let arg of node.inputs[i].arguments) {
+                            // 遍历各输入的参数
                             if (arg.initializer == null){
-                                // rky: 不根据变量tensor决定组数
+                                // 没有初始化的不是权重
                                 continue;
                             }                        
                             if (arg.type != null) {
+                                // 这里隐含假设输入数据使用了CHW数据序
                                 ic = arg.type.shape.dimensions[0];
                                 break;
                             }
@@ -1261,6 +1265,7 @@ view.View = class {
 
                     // rky: 潜在bug: 只有使用Int64时才需要.low
                     if (att.value.low === ic.low) {
+                        // 输入通道数和组数相同，这是PyTorch/Caffe/onnx 派系模拟dsconv的方式
                         op.name = 'DEPTHWISE_CONV_2D';
                     } else {
                         op.name = 'GROUPED_CONV2D'
@@ -1283,7 +1288,7 @@ view.View = class {
             tns.isConst = false;
             tns.data = null;
         }
-
+                      
         if (isInput == true) {
             tns.isGraphInput = this.rky_IsGraphInput(tns, nodes);
             tns.isGraphOutput = false;
@@ -1300,20 +1305,23 @@ view.View = class {
         let dct = {
             version: 3,
         }
-        let sg_aryTensors = [];
-        let sg_aryInpTensors = [];
-        let sg_aryOutTensors = [];
+        let sg_aryTensors = []; // 计算图中的全体tensor
+        let sg_aryInpTensors = [];  // 计算图中的输入tensor
+        let sg_aryOutTensors = [];  // 计算图中的输出tensor
         let sg_aryOps = [];
         let sg_aryOpTypes = [];
-        let sg_sName = model.graphs[0].name;
+        // 计算图的名称 (假设模型文件中只有一个计算图)。
+        let sg_sName = model.graphs[0].name; 
         let sFmt = model.format.toLowerCase();
-        let isCHW = false;
+        let isCHW = false;  // 是否为CHW数据序。我们需要使用HWC数据序
 
+        // onnx使用CHW数据序
         if (sFmt.indexOf('onnx') >= 0) {
             isCHW = true;
         }
 
         if (model.graphs.length != 1) {
+            // tflite只支持单计算图
             console.log('sub graph must be 1!');
             return;
         }
@@ -1322,7 +1330,7 @@ view.View = class {
         let tnsNdx = 0;
         let nodes = this.nodes; // rky: netron的node是operator
         for (let node of nodes) {
-
+            // 遍历各node (运算符）。默认情况下，Netron已经按拓扑排序的顺序迭代各node
             let op = {a_netronNode: node};
             if (node.type === 'Conv' || node.type == 'Convolution') {
                 // 判断是否是分组卷积实现的dsconv
@@ -1331,7 +1339,7 @@ view.View = class {
                 op.name = node.type.toUpperCase();
             }
 
-            let isNewTns = true;
+            let isNewTns = true; // 先假设是新出现的tensor
             // rky: 遍历所有被当作这个node的输入的tensors
             for (let input of node.inputs) {
                 for(let arg of input.arguments)
@@ -1393,6 +1401,7 @@ view.View = class {
             nodeNdx++;
             console.log('parsed op,', op.name);
         }
+        window.alert(this.nodes.length)
         console.log(this.nodes.length);
     }
 
@@ -2164,7 +2173,6 @@ view.ModelFactoryService = class {
     }
 
     _openContext(context) {
-        // rocky: modules 存储了可能的格式
         const modules = this._filter(context).filter((module) => module && module.length > 0);
         const errors = [];
         let match = false;
