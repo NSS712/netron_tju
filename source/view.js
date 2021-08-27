@@ -1177,7 +1177,7 @@ view.View = class {
         for (var idx=0; idx<this.nodeJSONidx; idx++) {
             this.node_tree_desc = this.nodeTreeList[idx];
             if (this.node_tree_desc.output_id == out_id) {
-                return this.node_tree_desc.index;aaaaa
+                return this.node_tree_desc.index;
             }
         }
     }
@@ -1280,8 +1280,9 @@ view.View = class {
         if (netronTns.initializer != null) {
             tns.isConst = true;
             tns.data = {
-                ary: netronTns.initializer.data,
-                shape: netronTns.shape.dimensions
+                // rky: 注意：来自不同输入格式的属性可能不同，只需先支持onnx, caffemodel
+                ary: netronTns._initializer._data,
+                shape: netronTns._type.shape
             };
             console.log(tns.data.shape);
         } else {
@@ -1308,8 +1309,8 @@ view.View = class {
         let sg_aryTensors = []; // 计算图中的全体tensor
         let sg_aryInpTensors = [];  // 计算图中的输入tensor
         let sg_aryOutTensors = [];  // 计算图中的输出tensor
-        let sg_aryOps = [];
-        let sg_aryOpTypes = [];
+        let sg_aryOps = [];     // 计算图中的算子
+        let sg_aryOpTypes = []; // 计算图中的算子类型, 用于tflite中的OperatorCode
         // 计算图的名称 (假设模型文件中只有一个计算图)。
         let sg_sName = model.graphs[0].name; 
         let sFmt = model.format.toLowerCase();
