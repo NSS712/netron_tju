@@ -116,7 +116,6 @@ class Application {
         curOutputs = outputs;
         newNodes = [node];
         for (let i=0; i<node._chain._length; i++) {
-            
         }
         return newNodes;
     }
@@ -244,7 +243,6 @@ class Application {
             console.log('sub graph must be 1!');
             return;
         }
-
         let nodeNdx = 0;
         let tnsNdx = 0;
         let nodes = model._graphs[0]._nodes; // rky: netron的node是operator
@@ -285,7 +283,6 @@ class Application {
                     }
                 }
 
-
                 // (input._visible && input._arguments._length === 1 && input._arguments[0]._initializer != null)
             }
 
@@ -307,7 +304,7 @@ class Application {
                         this.rky_ParseTensor(tns, arg, nodes, sg_aryTensors, false);
                         if (tns.isGraphOutput) {
                             sg_aryOutTensors.push(tns);
-                        }                        
+                        } 
                         tnsNdx++;                    
                     }
     
@@ -320,7 +317,50 @@ class Application {
             nodeNdx++;
             console.log('parsed op,', op._name);
         }
-        console.log(view._nodes._length);
+        console.log("111111");
+        //console.log(view._nodes._length);
+        let tfjson = {"version": 3,
+            "operator_codes":[],
+            "subgraphs":[{"tensors":[],"inputs":[],"outputs":[],"operators":[]}],
+            "description":"a",
+            "buffers":[]
+        };
+        for(let t of sg_aryOpTypes){
+            tfjson.operator_codes.push({"builtin_code":t});
+        }
+        console.log(tfjson);
+        for(let t of sg_aryTensors){
+            if(t.netronTns._type == null){
+                tfjson.subgraphs[0].tensors.push({
+                    "shape":[0],
+                    "buffer":1,
+                    "type" : t.toOps[0].a_netronNode._attributes[0]._value,
+                    "name":t.netronTns._name,
+                    "quantization":{}
+                });
+            }
+            else{
+                let s ;
+                for(let i=0;i<t.netronTns._type._shape._shape.dim.length;i++){
+                    if(t.netronTns._type._shape._shape.dim[i].size.low!=0){
+                        s=s+t.netronTns._type._shape._shape.dim[i].size.low+",";
+                    }
+                    if(t.netronTns._type._shape._shape.dim[i].size.high!=0){
+                        s=s+t.netronTns._type._shape._shape.dim[i].size.high+",";
+                    }
+                }
+                console.log(s);
+                tfjson.subgraphs[0].tensors.push({
+                    "shape": [s],
+                    "buffer": 1,
+                    "type" : t.toOps[0].a_netronNode._attributes[0]._value,
+                    "name": t.netronTns._name,
+                    "quantization":{
+                    }
+                });
+            }
+        }
+        console.log(tfjson);
     }
 
 
