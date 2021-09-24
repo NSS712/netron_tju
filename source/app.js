@@ -357,9 +357,14 @@ class Application {
                     }
                 }
                 console.log(s);
+                let buffer_location=null;
+                if(t.netronTns._initializer.buffer!=null){
+                    tfjson.buffers.push(t.netronTns._initializer.buffer);
+                    buffer_location=tfjson.buffers.length;
+                }
                 tfjson.subgraphs[0].tensors.push({
                     "shape": [s],
-                    "buffer": 1,
+                    "buffer": buffer_location,
                     "type" : t.toOps[0].a_netronNode._attributes[0]._value,
                     "name": t.netronTns._name,
                     "quantization":{
@@ -367,6 +372,15 @@ class Application {
                 });
             }
         }
+        //nss begin here
+
+        //假定第一个算子的输入即为整个网络的输入，第一个算子的输出即为整个网络的输出。
+        tfjson.subgraphs.inputs.push(tfjson.subgraphs[0].tensors[0]);
+        tfjson.subgraphs.inputs.push(tfjson.subgraphs[0].tensors[tfjson.subgraphs[0].tensors.length-1]);
+
+        //nss ends his work
+
+
         console.log(tfjson);
     }
 
