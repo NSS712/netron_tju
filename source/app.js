@@ -330,6 +330,7 @@ class Application {
         }
         console.log(tfjson);
         for(let t of sg_aryTensors){
+            // TODO: 此处的判断有问题
             if(t.netronTns._type == null){
                 tfjson.subgraphs[0].tensors.push({
                     "shape":[0],
