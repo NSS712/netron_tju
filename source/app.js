@@ -366,16 +366,16 @@ class Application {
                 let s ="";
                 for(let i=0;i<t.data.shape._shape.dim.length;i++){
                     if(t.data.shape._shape.dim[i].size.low!=0){
-                        s=s+t.data.shape._shape.dim[i].size.low+","+"'/n'";
+                        s=s+t.data.shape._shape.dim[i].size.low+",";
                     }
                     if(t.data.shape._shape.dim[i].size.high!=0){
-                        s=s+t.data.shape._shape.dim[i].size.high+","+"'/n'";
+                        s=s+t.data.shape._shape.dim[i].size.high+",";
                     }
                 }
                 console.log(s);
                 
-                if(t.netronTns._initializer.buffer!=null){
-                    tfjson.buffers.push(t.netronTns._initializer.buffer);
+                if(t.netronTns._initializer._buffer!=null){
+                    tfjson.buffers.push(t.netronTns._initializer._buffer);
                     buffer_location=tfjson.buffers.length;
                 }
                 tfjson.subgraphs[0].tensors.push({
@@ -391,8 +391,18 @@ class Application {
         //nss begin here
 
         //假定第一个算子的输入即为整个网络的输入，第一个算子的输出即为整个网络的输出。
-        tfjson.subgraphs.inputs.push(tfjson.subgraphs[0].tensors[0]);
-        tfjson.subgraphs.inputs.push(tfjson.subgraphs[0].tensors[tfjson.subgraphs[0].tensors.length-1]);
+        tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[0]);
+        tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[tfjson.subgraphs[0].tensors.length-1]);
+
+        //输出到文件
+        tfjson.buffers=[];
+        fs.writeFile('test.json', JSON.stringify(tfjson), err => {
+            if (err) {
+                console.error(err)
+                return
+            }
+            console.error("文件写入成功")//文件写入成功。
+        })
 
         //nss ends his work
 
