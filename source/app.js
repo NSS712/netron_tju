@@ -1,3 +1,9 @@
+/* eslint-disable brace-style */
+/* eslint-disable semi */
+/* eslint-disable no-trailing-spaces */
+/* eslint-disable no-irregular-whitespace */
+/* eslint-disable no-unused-vars */
+/* eslint-disable prefer-const */
 /* jshint esversion: 6 */
 
 const electron = require('electron');
@@ -304,10 +310,9 @@ class Application {
                         this.rky_ParseTensor(tns, arg, nodes, sg_aryTensors, false);
                         if (tns.isGraphOutput) {
                             sg_aryOutTensors.push(tns);
-                        } 
-                        tnsNdx++;                    
+                        }
+                        tnsNdx++;
                     }
-    
                 }
             }
             sg_aryOps.push(op);
@@ -332,23 +337,23 @@ class Application {
         console.log(tfjson);
         for(let t of sg_aryTensors){
             // TODO: 此处的判断有问题
-            if(t.netronTns._type == null){
+            if(t.netronTns.data == null){
                 tfjson.subgraphs[0].tensors.push({
                     "shape":[0],
                     "buffer":1,
-                    "type" : t.toOps[0].a_netronNode._attributes[0]._value,
+                    "type" : null,
                     "name":t.netronTns._name,
                     "quantization":{}
                 });
             }
             else{
                 let s ;
-                for(let i=0;i<t.netronTns._type._shape._shape.dim.length;i++){
-                    if(t.netronTns._type._shape._shape.dim[i].size.low!=0){
-                        s=s+t.netronTns._type._shape._shape.dim[i].size.low+",";
+                for(let i=0;i<t.data._type.shape._shape.dim.length;i++){
+                    if(t.data._type.shape._shape.dim[i].size.low!=0){
+                        s=s+t.data._type.shape._shape.dim[i].size.low+","+"/n";
                     }
-                    if(t.netronTns._type._shape._shape.dim[i].size.high!=0){
-                        s=s+t.netronTns._type._shape._shape.dim[i].size.high+",";
+                    if(t.data._type.shape._shape.dim[i].size.high!=0){
+                        s=s+t.data.type._shape._shape.dim[i].size.high+","+"/n";
                     }
                 }
                 console.log(s);
