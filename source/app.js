@@ -328,6 +328,7 @@ class Application {
         for(let t of sg_aryOpTypes){
             tfjson.operator_codes.push({"builtin_code":t});
         }
+        console.log("111");
         console.log(tfjson);
         for(let t of sg_aryTensors){
             // TODO: 此处的判断有问题
