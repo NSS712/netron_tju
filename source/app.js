@@ -238,7 +238,7 @@ class Application {
         let sg_sName = view._model_name;
         let sFmt = view._format;
         let isCHW = false;  // 是否为CHW数据序。我们需要使用HWC数据序
-
+        let typeoftensor = [];//计算tensor类型
         // onnx使用CHW数据序
         if (sFmt.indexOf('onnx') >= 0) {
             isCHW = true;
@@ -320,7 +320,8 @@ class Application {
                 sg_aryOpTypes.push(op._name);
             }
             nodeNdx++;
-            console.log('parsed op,', op._name);
+            //console.log('parsed op,', op._name);
+
         }
         console.log("111111");
         //console.log(view._nodes._length);
@@ -337,27 +338,42 @@ class Application {
         console.log(tfjson);
         for(let t of sg_aryTensors){
             // TODO: 此处的判断有问题
-            if(t.netronTns.data == null){
+            let type;
+            let buffer_location=null;
+            if(t.toOps[0]!=null){
+                let id = 0;
+                while(t.toOps[0].a_netronNode._attributes[id]._name != "T"){
+                    id++;}
+                type = t.toOps[0].a_netronNode._attributes[0]._value;
+            }
+            else{
+                let id = 0;
+                while(t.fromOps[0].a_netronNode._attributes[id]._name != "T"){
+                    id++;}
+                type = t.fromOps[0].a_netronNode._attributes[id]._value;
+            }
+            console.log(type);
+            if(t.data == null){
                 tfjson.subgraphs[0].tensors.push({
                     "shape":[0],
-                    "buffer":1,
-                    "type" : null,
+                    "buffer":buffer_location,
+                    "type" : type,
                     "name":t.netronTns._name,
                     "quantization":{}
                 });
             }
             else{
-                let s ;
-                for(let i=0;i<t.data._type.shape._shape.dim.length;i++){
-                    if(t.data._type.shape._shape.dim[i].size.low!=0){
-                        s=s+t.data._type.shape._shape.dim[i].size.low+","+"/n";
+                let s ="";
+                for(let i=0;i<t.data.shape._shape.dim.length;i++){
+                    if(t.data.shape._shape.dim[i].size.low!=0){
+                        s=s+t.data.shape._shape.dim[i].size.low+","+"'/n'";
                     }
-                    if(t.data._type.shape._shape.dim[i].size.high!=0){
-                        s=s+t.data.type._shape._shape.dim[i].size.high+","+"/n";
+                    if(t.data.shape._shape.dim[i].size.high!=0){
+                        s=s+t.data.shape._shape.dim[i].size.high+","+"'/n'";
                     }
                 }
                 console.log(s);
-                let buffer_location=null;
+                
                 if(t.netronTns._initializer.buffer!=null){
                     tfjson.buffers.push(t.netronTns._initializer.buffer);
                     buffer_location=tfjson.buffers.length;
@@ -365,7 +381,7 @@ class Application {
                 tfjson.subgraphs[0].tensors.push({
                     "shape": [s],
                     "buffer": buffer_location,
-                    "type" : t.toOps[0].a_netronNode._attributes[0]._value,
+                    "type" : type,
                     "name": t.netronTns._name,
                     "quantization":{
                     }
