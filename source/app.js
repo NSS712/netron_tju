@@ -6,6 +6,7 @@
 /* eslint-disable prefer-const */
 /* jshint esversion: 6 */
 
+const { timerFlush } = require('d3-timer');
 const electron = require('electron');
 const updater = require('electron-updater');
 const fs = require('fs');
@@ -323,19 +324,98 @@ class Application {
             //console.log('parsed op,', op._name);
 
         }
-        console.log("111111");
         //console.log(view._nodes._length);
-        let tfjson = {"version": 3,
+
+        //Work starts here!!!!!!!!!!!!!!!
+        console.log("start to generate tflite file");
+
+        let tfjson = {
+            "version": 3,
             "operator_codes":[],
-            "subgraphs":[{"tensors":[],"inputs":[],"outputs":[],"operators":[]}],
-            "description":"a",
+            "subgraphs":[{
+                "tensors":[],
+                "inputs":[],
+                "outputs":[],
+                "operators":[]
+            }],
+            "description":"anymodel to tflite",
             "buffers":[]
         };
+
+        //写入算子类型名称（原始未转换的)
         for(let t of sg_aryOpTypes){
             tfjson.operator_codes.push({"builtin_code":t});
         }
-        console.log("111");
-        console.log(tfjson);
+
+        //写入算子
+
+        //写入tensor
+        for(let t of sg_aryTensors){
+            let nt={};
+            nt.shape=[];
+            if(t.data!=null){
+                for (let ls of t.data.shape._shape.dim){
+                        nt.shape.push(ls.size.low);
+                }
+            }
+            nt.name=t.netronTns._name;
+            nt.type=t.netronTns.dtype;
+            if(t.netronTns._initializer!=null){
+                if(t.netronTns._initializer._buffer!=null){
+                    let lss=Object.values(t.netronTns._initializer._buffer);
+                    tfjson.buffers.push(lss);
+                }
+                else {
+                    let lss=[0];
+                    tfjson.buffers.push(lss);
+                }
+                
+            }
+            else {
+                tfjson.buffers.push([]);
+            }
+            nt.buffer=tfjson.buffers.length-1;
+            tfjson.subgraphs[0].tensors.push(nt);
+        }
+
+        //写入input和output
+        tfjson.subgraphs[0].inputs.push(0);
+        tfjson.subgraphs[0].outputs.push(tfjson.subgraphs[0].tensors.length-1);
+
+        //写入算子并匹配tensor
+        for(let i=1;i<sg_aryOps.length-1;i++){
+            let op=sg_aryOps[i];
+            let n_op={"inputs":[],"outputs":[]};
+            for(let op_in of op.a_netronNode._inputs){
+                n_op.inputs.push(check_tensor_id(op_in._arguments[0]._name));
+            }
+            for(let op_out of op.a_netronNode._outputs){
+                n_op.outputs.push(check_tensor_id(op_out._arguments[0]._name));
+            }
+            tfjson.subgraphs[0].operators.push(n_op);
+        }
+        function check_tensor_id(tensor_name){
+            for(let i =0;i< tfjson.subgraphs[0].tensors.length;i++){
+                if(tensor_name==tfjson.subgraphs[0].tensors[i].name){
+                    return i;
+                }
+            }
+            return -1;
+        }
+        console.log("finish generating");
+
+
+        //输出到文件
+        tfjson.buffers=[];
+        fs.writeFile('test.json', JSON.stringify(tfjson), err => {
+            if (err) {
+                console.error(err)
+                return
+            }
+            console.error("文件写入成功")//文件写入成功。
+        })
+
+        /*
         for(let t of sg_aryTensors){
             // TODO: 此处的判断有问题
             let type;
@@ -389,25 +469,20 @@ class Application {
             }
         }
         //nss begin here
-
+        for(let op of sg_aryOps){
+            let opp;
+            opp.opcode_index=tfjson.operator_codes.indexOf(op._name);
+            
+        }
         //假定第一个算子的输入即为整个网络的输入，第一个算子的输出即为整个网络的输出。
         tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[0]);
         tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[tfjson.subgraphs[0].tensors.length-1]);
 
-        //输出到文件
-        tfjson.buffers=[];
-        fs.writeFile('test.json', JSON.stringify(tfjson), err => {
-            if (err) {
-                console.error(err)
-                return
-            }
-            console.error("文件写入成功")//文件写入成功。
-        })
+        
 
         //nss ends his work
 
-
-        console.log(tfjson);
+        */
     }
 
 
