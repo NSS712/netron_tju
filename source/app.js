@@ -344,7 +344,58 @@ class Application {
 
         //写入算子类型名称（原始未转换的)
         for(let t of sg_aryOpTypes){
-            tfjson.operator_codes.push({"builtin_code":t});
+            if (t == "expand"){
+                tfjson.operator_codes.push({"builtin_code":"expand_dims"})
+            }
+            else if (t == "Conv"){
+                tfjson.operator_codes.push({"builtin_code":"conv_2d"})
+            }
+            else if (t == "MaxPool"){
+                tfjson.operator_codes.push({"builtin_code":"max_pool_2d"})
+            }
+            else if (t == "AveragePool"){
+                tfjson.operator_codes.push({"builtin_code":"average_pool_2d"})
+            }
+            else if (t == "ArgMax"){
+                tfjson.operator_codes.push({"builtin_code":"arg_max"})
+            }
+            else if (t == "ArgMin"){
+                tfjson.operator_codes.push({"builtin_code":"arg_min"})
+            }
+            else if (t == "Concat"){
+                tfjson.operator_codes.push({"builtin_code":"concatenation"})
+            }
+            else if (t == "TransposeConv"){
+                tfjson.operator_codes.push({"builtin_code":"convolution_2d_transpode_bias"})
+            }
+            else if (t == "DepthToSpace"){
+                tfjson.operator_codes.push({"builtin_code":"depth_to_space"})
+            }
+            else if (t == "DequantizeLinear"){
+                tfjson.operator_codes.push({"builtin_code":"dequantize"})
+            }
+            else if (t == "Max"){
+                tfjson.operator_codes.push({"builtin_code":"Max"})
+            }
+            else if (t == "Min"){
+                tfjson.operator_codes.push({"builtin_code":"minimum"})
+            }
+            else if (t == "MaxUnpool"){
+                tfjson.operator_codes.push({"builtin_code":"max_unpooling_2d"})
+            }
+            else if (t == "NonMaxSuppression"){
+                tfjson.operator_codes.push({"builtin_code":"non_max_suppression"})
+            }
+            else if (t == "QuantizeLinear"){
+                tfjson.operator_codes.push({"builtin_code":"quantize"})
+            }
+            else if (t == "ReverseSequence"){
+                tfjson.operator_codes.push({"builtin_code":"reverse_sequence"})
+            }
+            else{
+                tfjson.operator_codes.push({ "builtin_code" : t })
+            }
+            
         }
 
         //写入算子
@@ -385,7 +436,7 @@ class Application {
         //写入算子并匹配tensor
         for(let i=1;i<sg_aryOps.length-1;i++){
             let op=sg_aryOps[i];
-            let n_op={"inputs":[],"outputs":[]};
+            let n_op={"inputs":[],"outputs":[],"builtin_options_type":op, "builtin_options":[]};
             for(let op_in of op.a_netronNode._inputs){
                 n_op.inputs.push(check_tensor_id(op_in._arguments[0]._name));
             }
@@ -393,11 +444,32 @@ class Application {
                 n_op.outputs.push(check_tensor_id(op_out._arguments[0]._name));
             }
             tfjson.subgraphs[0].operators.push(n_op);
+            if (op == "ArgMax"){
+                n_op.builtin_options.push("output_type : TensorType,")
+            }
+            else if (op == "ArgMin"){
+                n_op.builtin_options.push("output_type : TensorType,")
+            }
+            else if (op == "Concat"){
+                n_op.builtin_options.push("axis:int,fused_activation_function:ActivationFunctionType,")
+            }
+            else if (op == "Conv"){
+                n_op.builtin_options.push("padding:Padding,stride_w:int,stride_h:int,fused_activation_function:ActivationFunctionType,dilation_w_factor:int = 1,dilation_h_factor:int = 1,")
+            }
+            else if (op == "TransposeConv"){
+                n_op.builtin_options.push("padding:Padding,stride_w:int,stride_h:int,")
+            }
+            else if (op == "DepthToSpace"){
+                n_op.builtin_options.push("block_size: int,")
+            }
+            else if (op == "ReverseSequence"){
+                n_op.builtin_options.push("seq_dim:int,batch_dim:int = 0,")
+            }
         }
         function check_tensor_id(tensor_name){
             for(let i =0;i< tfjson.subgraphs[0].tensors.length;i++){
                 if(tensor_name==tfjson.subgraphs[0].tensors[i].name){
-                    return i;
+                    return i ;
                 }
             }
             return -1;
@@ -414,6 +486,7 @@ class Application {
             }
             console.error("文件写入成功")//文件写入成功。
         })
+        console.log("进程结束");
 
         /*
         for(let t of sg_aryTensors){
