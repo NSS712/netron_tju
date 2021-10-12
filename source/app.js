@@ -344,14 +344,14 @@ class Application {
 
         //写入算子类型名称（原始未转换的)
         for(let t of sg_aryOpTypes){
-            if (t == "expand"){
-                tfjson.operator_codes.push({"builtin_code":"expand_dims"})
+            if (t == "EXPAND"){
+                tfjson.operator_codes.push({"builtin_code":"EXPAND_DIMS"})
             }
-            else if (t == "Conv"){
+            else if (t == "CONV"){
                 tfjson.operator_codes.push({"builtin_code":"conv_2d"})
             }
-            else if (t == "MaxPool"){
-                tfjson.operator_codes.push({"builtin_code":"max_pool_2d"})
+            else if (t == "MAXPOOL"){
+                tfjson.operator_codes.push({"builtin_code":"MAX_POOL_2D"})
             }
             else if (t == "AveragePool"){
                 tfjson.operator_codes.push({"builtin_code":"average_pool_2d"})
@@ -395,81 +395,86 @@ class Application {
             else{
                 tfjson.operator_codes.push({ "builtin_code" : t })
             }
-            
         }
 
-        //写入算子
-
+        
         //写入tensor
+        let count =-1;
         for(let t of sg_aryTensors){
+            count++;
             let nt={};
             nt.shape=[];
-            if(t.data!=null){
+            if(t.data!=null&&t.data.shape!=null&&t.data.shape._shape!=null&&t.data.shape._shape.dim!=null){
                 for (let ls of t.data.shape._shape.dim){
                         nt.shape.push(ls.size.low);
                 }
             }
+            else if(t.data!=null&&t.data.shape!=null&&t.data.shape._dimensions!=null){
+                for (let ls of t.data.shape._dimensions){
+                        nt.shape.push(ls.low);
+                }
+            }
+            else if(t.netronTns!=null&&t.netronTns._type!=null&&t.netronTns._type._shape!=null&&t.netronTns._type._shape._dimensions!=null){
+                for (let ls of t.netronTns._type._shape._dimensions){
+                        nt.shape.push(ls.low);
+                }
+            }
+            
             nt.name=t.netronTns._name;
+            if(t.isGraphInput){
+                tfjson.subgraphs[0].inputs.push(count);
+            }
+            if(t.isGraphOutput){
+                tfjson.subgraphs[0].outputs.push(count);
+            }
             nt.type=t.netronTns.dtype;
             if(t.netronTns._initializer!=null){
                 if(t.netronTns._initializer._buffer!=null){
                     let lss=Object.values(t.netronTns._initializer._buffer);
-                    tfjson.buffers.push(lss);
+                    let lsss={"data":lss};
+                    tfjson.buffers.push(lsss);
+                }
+                else if(t.netronTns._initializer._values.buffer!=null){
+                    let lss=Object.values(t.netronTns._initializer._values.buffer);
+                    let lsss={"data":lss};
+                    tfjson.buffers.push(lsss);
                 }
                 else {
                     let lss=[0];
-                    tfjson.buffers.push(lss);
+                    let lsss={"data":lss};
+                    tfjson.buffers.push(lsss);
                 }
                 
             }
             else {
-                tfjson.buffers.push([]);
+                let lss=[];
+                let lsss={"data":lss};
+                tfjson.buffers.push(lsss);
             }
             nt.buffer=tfjson.buffers.length-1;
             tfjson.subgraphs[0].tensors.push(nt);
         }
 
-        //写入input和output
-        tfjson.subgraphs[0].inputs.push(0);
-        tfjson.subgraphs[0].outputs.push(tfjson.subgraphs[0].tensors.length-1);
-
         //写入算子并匹配tensor
-        for(let i=1;i<sg_aryOps.length-1;i++){
+        for(let i=0;i<sg_aryOps.length;i++){
             let op=sg_aryOps[i];
-            let n_op={"inputs":[],"outputs":[],"builtin_options_type":op, "builtin_options":[]};
+            let n_op={"inputs":[],"outputs":[]};
             for(let op_in of op.a_netronNode._inputs){
-                n_op.inputs.push(check_tensor_id(op_in._arguments[0]._name));
+                if(op_in._arguments[0]!=null&&op_in._arguments[0]._name!=null){
+                    n_op.inputs.push(check_tensor_id(op_in._arguments[0]._name));
+                }
             }
             for(let op_out of op.a_netronNode._outputs){
-                n_op.outputs.push(check_tensor_id(op_out._arguments[0]._name));
+                if(op_out._arguments[0]!=null&&op_out._arguments[0]._name!=null){
+                    n_op.outputs.push(check_tensor_id(op_out._arguments[0]._name));
+                }
             }
             tfjson.subgraphs[0].operators.push(n_op);
-            if (op == "ArgMax"){
-                n_op.builtin_options.push("output_type : TensorType,")
-            }
-            else if (op == "ArgMin"){
-                n_op.builtin_options.push("output_type : TensorType,")
-            }
-            else if (op == "Concat"){
-                n_op.builtin_options.push("axis:int,fused_activation_function:ActivationFunctionType,")
-            }
-            else if (op == "Conv"){
-                n_op.builtin_options.push("padding:Padding,stride_w:int,stride_h:int,fused_activation_function:ActivationFunctionType,dilation_w_factor:int = 1,dilation_h_factor:int = 1,")
-            }
-            else if (op == "TransposeConv"){
-                n_op.builtin_options.push("padding:Padding,stride_w:int,stride_h:int,")
-            }
-            else if (op == "DepthToSpace"){
-                n_op.builtin_options.push("block_size: int,")
-            }
-            else if (op == "ReverseSequence"){
-                n_op.builtin_options.push("seq_dim:int,batch_dim:int = 0,")
-            }
         }
         function check_tensor_id(tensor_name){
             for(let i =0;i< tfjson.subgraphs[0].tensors.length;i++){
                 if(tensor_name==tfjson.subgraphs[0].tensors[i].name){
-                    return i ;
+                    return i;
                 }
             }
             return -1;
@@ -478,7 +483,7 @@ class Application {
 
 
         //输出到文件
-        tfjson.buffers=[];
+        //tfjson.buffers=[];
         fs.writeFile('test.json', JSON.stringify(tfjson), err => {
             if (err) {
                 console.error(err)
@@ -486,76 +491,6 @@ class Application {
             }
             console.error("文件写入成功")//文件写入成功。
         })
-        console.log("进程结束");
-
-        /*
-        for(let t of sg_aryTensors){
-            // TODO: 此处的判断有问题
-            let type;
-            let buffer_location=null;
-            if(t.toOps[0]!=null){
-                let id = 0;
-                while(t.toOps[0].a_netronNode._attributes[id]._name != "T"){
-                    id++;}
-                type = t.toOps[0].a_netronNode._attributes[0]._value;
-            }
-            else{
-                let id = 0;
-                while(t.fromOps[0].a_netronNode._attributes[id]._name != "T"){
-                    id++;}
-                type = t.fromOps[0].a_netronNode._attributes[id]._value;
-            }
-            console.log(type);
-            if(t.data == null){
-                tfjson.subgraphs[0].tensors.push({
-                    "shape":[0],
-                    "buffer":buffer_location,
-                    "type" : type,
-                    "name":t.netronTns._name,
-                    "quantization":{}
-                });
-            }
-            else{
-                let s ="";
-                for(let i=0;i<t.data.shape._shape.dim.length;i++){
-                    if(t.data.shape._shape.dim[i].size.low!=0){
-                        s=s+t.data.shape._shape.dim[i].size.low+",";
-                    }
-                    if(t.data.shape._shape.dim[i].size.high!=0){
-                        s=s+t.data.shape._shape.dim[i].size.high+",";
-                    }
-                }
-                console.log(s);
-                
-                if(t.netronTns._initializer._buffer!=null){
-                    tfjson.buffers.push(t.netronTns._initializer._buffer);
-                    buffer_location=tfjson.buffers.length;
-                }
-                tfjson.subgraphs[0].tensors.push({
-                    "shape": [s],
-                    "buffer": buffer_location,
-                    "type" : type,
-                    "name": t.netronTns._name,
-                    "quantization":{
-                    }
-                });
-            }
-        }
-        //nss begin here
-        for(let op of sg_aryOps){
-            let opp;
-            opp.opcode_index=tfjson.operator_codes.indexOf(op._name);
-            
-        }
-        //假定第一个算子的输入即为整个网络的输入，第一个算子的输出即为整个网络的输出。
-        tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[0]);
-        tfjson.subgraphs[0].inputs.push(tfjson.subgraphs[0].tensors[tfjson.subgraphs[0].tensors.length-1]);
-
-        
-
-        //nss ends his work
-
-        */
     }
 
 
