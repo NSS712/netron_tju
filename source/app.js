@@ -227,7 +227,6 @@ class Application {
     _quantization_(nt, t)
     {
         // 写入quantization - llw
-            TODO:
 
             nt.quantization = {};
             let _min;
