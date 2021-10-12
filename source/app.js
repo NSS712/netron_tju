@@ -224,6 +224,61 @@ class Application {
         tnsAry.push(tns);
     }
 
+    _quantization_(nt, t)
+    {
+        写入quantization - llw
+            TODO:
+
+            nt.quantization = {};
+            let _min;
+            let _max;
+            let _scale;
+            let _zp;
+            if (t.netronTns._initializer != null) {
+                // 确定_min 确定_max
+                _min = t.netronTns._initializer._buffer[0];
+                _max = t.netronTns._initializer._buffer[0];
+
+                for (let temp of t.netronTns._initializer._buffer) {
+                    if (temp <= _min) {
+                        _min = temp;
+                    }
+                    if (temp >= _max) {
+                        _max = temp;
+                    }
+                }
+                // 确定_scale
+                _scale = (_max - _min) / 255.0 - 0.0;
+
+                // 确定_zp
+                _zp = 255.0 - _max / _scale;
+                _zp = _zp.toFixed(0);
+
+            }
+            else {
+                _zp = 0;
+                _scale = 0.000991;
+            }
+
+
+            if (t.netronTns._initializer != null) {
+                nt.quantization.min = [];
+                nt.quantization.max = [];
+                nt.quantization.scale = [];
+                nt.quantization.zero_point = [];
+                nt.quantization.min.push(_min);
+                nt.quantization.max.push(_max);
+                nt.quantization.scale.push(_scale);
+                nt.quantization.zero_point.push(_zp);
+            }
+            else {
+                nt.quantization.scale = [];
+                nt.quantization.zero_point = [];
+                nt.quantization.scale.push(_scale);
+                nt.quantization.zero_point.push(_zp);
+            }
+    }
+
     rky_SaveTfliteJson(view) {
         let sFileName = view._model_folder + view._modelfile + '._json';
         let model = view._model;
@@ -452,6 +507,10 @@ class Application {
                 tfjson.buffers.push(lsss);
             }
             nt.buffer=tfjson.buffers.length-1;
+
+            // quantization
+            // quantization(nt, t);
+
             tfjson.subgraphs[0].tensors.push(nt);
         }
 
